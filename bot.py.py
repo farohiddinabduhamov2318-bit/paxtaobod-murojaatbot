@@ -90,6 +90,24 @@ async def about_us(message: types.Message):
 async def main():
     await dp.start_polling(bot)
 
+from aiohttp import web
+
+async def handle(request):
+    return web.Response(text="Bot ishlayapti!")
+
+app = web.Application()
+app.router.add_get("/", handle)
+
+async def web_server():
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 10000)
+    await site.start()
+
+async def main():
+    await web_server()
+    await dp.start_polling(bot)
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     asyncio.run(main())
