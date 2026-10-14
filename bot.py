@@ -5,8 +5,10 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiohttp import web
 
 TOKEN = "8951559500:AAEO-zEeUmgabpQWmIs7aFigeXEOFIFfGSU"
+ADMIN_ID = 8140009811  # Sizning Admin ID raqamingiz
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -24,12 +26,16 @@ main_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# /start komandasi (Rasmiy kutib olish)
+# /start komandasi
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
     text = (
-        "🏢 <b>Paxtaobod tuman 1-son texnikumi</b>\n\n"
-        "Rasmiy murojaatlar botiga xush kelibsiz!\n\n"
+        "<b>Bu bot nimalar qila oladi?</b>\n"
+        "Paxtaobod tumani 1-son texnikumining murojaatlar bilan ishlash uchun yaratilgan rasmiy murojaat boti.\n\n"
+        "<b>XURMALI O'QUVCHI YOSHLAR!</b> Sizda o'quv jarayoni, korrupsion holatlar, "
+        "guruh rahbari faoliyati, dars sifati va samaradorligi, kutubxona faoliyati, "
+        "texnikum moddiy-texnik bazasi va boshqa savollar yoki muammolar bo'lsa, "
+        "texnikum rasmiy botiga murojaat yuboring.\n\n"
         "Kerakli bo'limni tanlang:"
     )
     await message.answer(text, parse_mode="HTML", reply_markup=main_menu)
@@ -45,17 +51,54 @@ async def ask_murojaat(message: types.Message, state: FSMContext):
     await message.answer(text, parse_mode="HTML")
     await state.set_state(MurojaatState.waiting_for_text)
 
-# Murojaat matnini qabul qilish
+# Murojaat matnini qabul qilib adminga yuborish
 @dp.message(MurojaatState.waiting_for_text)
 async def process_murojaat(message: types.Message, state: FSMContext):
+    user_name = message.from_user.full_name
+    user_username = f"@{message.from_user.username}" if message.from_user.username else "Username yo'q"
+    murojaat_matni = message.text
+
+    admin_xabari = (
+        "📨 <b>Yangi murojaat keldi!</b>\n\n"
+        f"👤 <b>Kimdan:</b> {user_name} ({user_username})\n"
+        f"🆔 <b>ID:</b> <code>{message.from_user.id}</code>\n\n"
+        f"💬 <b>Murojaat matni:</b>\n{murojaat_matni}"
+    )
+    
+    try:
+        await bot.send_message(chat_id=ADMIN_ID, text=admin_xabari, parse_mode="HTML")
+    except Exception as e:
+        print(f"Adminga yuborishda xato: {e}")
+
     await message.answer(
-        "✅ Murojaatingiz muvaffaqiyatli qabul qilindi.\n"
+        "✅ Murojaatingiz muvaffaqiyatli qabul qilindi va mas'ul xodimlarga yuborildi.\n"
         "O'rnatilgan tartibda ko'rib chiqilib, tez orada javob qaytariladi.",
         reply_markup=main_menu
     )
     await state.clear()
 
-# "Bog'lanish" bo'limi (Siz ko'rsatgan raqam bilan)
+# Admindan kelgan javobni foydalanuvchiga yo'naltirish
+@dp.message(F.from_user.id == ADMIN_ID)
+async def admin_reply(message: types.Message):
+    if message.reply_to_message:
+        reply_text = message.reply_to_message.text
+        try:
+            if "🆔 ID:" in reply_text:
+                for line in reply_text.split("\n"):
+                    if "🆔 ID:" in line:
+                        target_user_id = int(line.replace("🆔 ID:", "").replace("<code>", "").replace("</code>", "").strip())
+                        
+                        await bot.send_message(
+                            chat_id=target_user_id,
+                            text=f"💬 <b>Texnikum ma'muriyatidan javob:</b>\n\n{message.text}",
+                            parse_mode="HTML"
+                        )
+                        await message.reply("✅ Javob foydalanuvchiga muvaffaqiyatli yuborildi!")
+                        return
+        except Exception as e:
+            await message.reply(f"❌ Xatolik yuz berdi: {e}")
+
+# "Bog'lanish" bo'limi
 @dp.message(F.text == "📞 Bog‘lanish")
 async def contact_us(message: types.Message):
     text = (
@@ -87,11 +130,7 @@ async def about_us(message: types.Message):
     )
     await message.answer(text, parse_mode="HTML", reply_markup=main_menu)
 
-async def main():
-    await dp.start_polling(bot)
-
-from aiohttp import web
-
+# Render uchun soxta veb-server (24/7 ishlashi uchun)
 async def handle(request):
     return web.Response(text="Bot ishlayapti!")
 
